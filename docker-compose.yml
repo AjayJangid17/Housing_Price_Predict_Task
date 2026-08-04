@@ -1,0 +1,45 @@
+services:
+  ml-api:
+    build:
+      context: ./services/ml-api
+    volumes:
+      - ml-models:/code/models
+    ports:
+      - "8000:8000"
+
+  estimator-api:
+    build:
+      context: ./services/estimator-api
+    environment:
+      ML_API_URL: http://ml-api:8000
+    ports:
+      - "8001:8000"
+    depends_on:
+      - ml-api
+
+  market-api:
+    build:
+      context: ./services/market-api
+    environment:
+      ML_API_URL: http://ml-api:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ml-api
+
+  web:
+    build:
+      context: ./web
+    environment:
+      ML_API_URL: http://ml-api:8000
+      ESTIMATOR_API_URL: http://estimator-api:8000
+      MARKET_API_URL: http://market-api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - ml-api
+      - estimator-api
+      - market-api
+
+volumes:
+  ml-models:

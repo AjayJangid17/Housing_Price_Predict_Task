@@ -17,6 +17,7 @@ COPY data ./data
 #3. Train at build time -> prodcues /code/models/model.joblib
 RUN python -m app.train
 
-#4. Serve
+#4. Serve. Re-trains at container start only if models/model.joblib is missing
+# (e.g. when a fresh volume is mounted over /code/models)
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "test -f models/model.joblib || python -m app.train; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
