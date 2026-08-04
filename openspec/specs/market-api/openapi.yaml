@@ -1,0 +1,226 @@
+openapi: 3.0.3
+info:
+  title: Property Market Analysis API
+  description: >
+    Java 21 / Spring Boot service for the Housing Portal (Task 2, App2). 
+    Serves market-level analytics over the housing dataset, a what if price
+    tool that delegates to the ml-api, and CSV/PDF export of filtered data.
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: system
+    description: Liveness
+  - name: market
+    description: Market analytics, filtering, what-if,export
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: Liveness probe
+      operationId: health
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /market/summary:
+    get:
+      tags: [market]
+      summary: Aggregate market statistics over the whole dataset
+      description: > 
+        Returns dataset-wide aggregate. Result is cached (@Cacheable) because
+        the underlying. dataset is static for the lifetime of the container.
+      operationId: getMarketSummary
+      responses:
+        '200':
+          description: Aggregated market statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketSummary'
+
+  /market/properties:
+    get:
+      tags: [market]
+      summary: List properties with optional filtering and sorting
+      operationId: getProperties
+      parameters:
+        - name: minPrice
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0 }
+          description: Minimum price (inclusive)
+        - name: maxPrice
+          in: query
+          required: false
+          schema: { type: integer,minimum: 0 }
+          description: Maximum price (inclusive)
+        - name: bedrooms
+          in: query
+          required: false
+          schema: { type: integer,minimum: 0 }
+          description: Exact bedroom count filter
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [price, square_footage, year_built, school_rating]
+            default: price
+          description: Field used to sort the resulting property list
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Sort direction
+      responses:
+        '200':
+          description: Filtered and sorted property list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Property'
+
+  /market/what-if:
+    post:
+      tags: [market]
+      summary: Predict the price of a hypothetical property
+      description: >
+        Delegates to the ml-api /predict endpoint. The market-api does not run the model
+        itself; it forwards the features and returns the prediction.
+      operationId: whatIf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyFeatures'
+      responses:
+        '200':
+          description: Predicted price for the supplied features
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhatIfResponse'
+        '503':
+          description: ml-api is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /market/export:
+    get:
+      tags: [market]
+      summary: Export filtered properties as CSV or PDF
+      operationId: exportProperties
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, pdf]
+          description: Output file format
+        - name: minPrice
+          in: query
+          required: false
+          schema: { type: integer,minimum: 0 }
+          description: Minimum price (inclusive)
+        - name: maxPrice
+          in: query
+          required: false
+          schema: { type: integer,minimum: 0 }
+          description: Maximum price (inclusive)
+        - name: bedrooms
+          in: query
+          required: false
+          schema: { type: integer,minimum: 0 }
+          description: Exact bedroom count filter
+      responses:
+        '200':
+          description: Exported file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+      required: [status]
+
+    MarketSummary:
+      type: object
+      properties:
+        count: { type: integer, example: 500 }
+        average_price: { type: number, example: 265000 }
+        minPrice: { type: integer, example: 120000 }          
+        maxPrice: { type: integer, example: 540000 }
+        avgPriceByBedrooms:
+          type: object
+          additionalProperties : { type: number }
+          example: { "2": 185000.0, "3":265000.0, "4": 350000.0 }
+      required: [count,average_price,minPrice,maxPrice,avgPriceByBedrooms]
+
+    PropertyFeatures:
+      type: object
+      description: Input features used by the ml-api prediction endpoint.
+      properties:
+        square_footage: { type: integer, minimum: 1, example: 1850 }
+        bedrooms: { type: integer, minimum: 0, maximum: 20, example: 3 }
+        bathrooms: { type: integer, minimum: 0, maximum: 20, example: 2 }
+        year_built: { type: integer, minimum: 1800, maximum: 2100, example: 1998 }
+        lot_size: { type: integer, minimum: 1, example: 7500 }
+        distance_to_city_center: { type: number, minimum: 0, example: 5.6 }
+        school_rating: { type: integer, minimum: 0, maximum: 10, example: 8.2 }
+      required:
+        - square_footage
+        - bedrooms
+        - bathrooms
+        - year_built
+        - lot_size
+        - distance_to_city_center
+        - school_rating
+    
+
+    Property:
+      type: object
+      description: A dataset row, including its known price.
+      allOf:
+        - $ref: "#/components/schemas/PropertyFeatures"
+        - type: object
+          properties:
+            id: { type: integer, example: 2 }
+            price: { type: integer, example: 265000 }
+          required: [id, price]
+  
+
+    WhatIfResponse:
+      type: object
+      properties:
+        predicted_price: { type: number,example: 265000.0 }
+        inputs: { $ref: "#/components/schemas/PropertyFeatures"}
+      required: [predictedPrice, inputs]
+
+    ErrorResponse:
+      type: object
+      properties: { type: string, example: "ml-api is unavailable"}        
+      required: [error]
