@@ -1,6 +1,7 @@
 package com.housing.marketapi.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -50,7 +51,9 @@ public final class ApiModels {
 
     public record WhatIfResponse(
             @JsonProperty("predicted_price") double predictedPrice,
-            @JsonProperty("inputs") PropertyFeatures inputs
+            @JsonProperty("inputs") PropertyFeatures inputs,
+            @JsonProperty("coefficients") Map<String, Double> coefficients,
+            @JsonProperty("intercept") double intercept
     ) {
     }
 
@@ -58,5 +61,12 @@ public final class ApiModels {
     }
 
     public record MlPredictionResponse(@JsonProperty("predicted_price") double predictedPrice) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ModelInfo(
+            @JsonProperty("coefficients") Map<String, Double> coefficients,
+            @JsonProperty("intercept") double intercept
+    ) {
     }
 }

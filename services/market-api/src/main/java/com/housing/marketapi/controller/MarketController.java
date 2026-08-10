@@ -63,7 +63,8 @@ public class MarketController {
     public ResponseEntity<?> whatIf(@Valid @RequestBody PropertyFeatures input) {
         try {
             double predictedPrice = mlApiClient.predict(input);
-            return ResponseEntity.ok(new WhatIfResponse(predictedPrice, input));
+            var modelInfo = mlApiClient.getModelInfo();
+            return ResponseEntity.ok(new WhatIfResponse(predictedPrice, input, modelInfo.coefficients(), modelInfo.intercept()));
         } catch (ResponseStatusException ex) {
             if (ex.getStatusCode().value() == HttpStatus.SERVICE_UNAVAILABLE.value()) {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)

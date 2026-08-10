@@ -33,6 +33,8 @@ export interface MarketSummary {
 export interface WhatifResponse {
     predicted_price: number;
     inputs: PropertyInput;
+    coefficients: Record<keyof PropertyInput, number>;
+    intercept: number;
 }
 
 export const FEATURES_LABLES: Record<keyof PropertyInput, string> = {
